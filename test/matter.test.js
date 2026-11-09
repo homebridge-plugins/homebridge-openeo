@@ -7,7 +7,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 
 import { OpenEOCharger } from '../lib/charger.js'
 import { startFakeCharger } from './fake-openeo-charger.js'
-import { boot, loadHomebridge, useStorage } from './harness.js'
+import { boot, loadHomebridge, serialise, sleep, useStorage } from './harness.js'
 import { makeMatter, withMatter } from './matter-stand-in.js'
 
 let charger
@@ -29,6 +29,7 @@ async function start(config, { matterOn = true, ...options } = {}) {
       m = makeMatter(api, options)
       withMatter(m, matterOn)(api)
     },
+    cached: options.cached,
     restore: (platform) => {
       for (const a of options.restored || []) {
         platform.configureMatterAccessory(a)
@@ -176,6 +177,19 @@ describe('matter ev charger (experimental)', () => {
       charger.setPlugged(true)
     }
   })
+
+  it('still stops at the charge-until time when homebridge restarts before it', async () => {
+    await start(cfg({ matterDeviceType: 'evCharger' }))
+    await vi.waitFor(() => expect(published()).toHaveLength(1))
+    const until = Math.floor(Date.now() / 1000) + 2
+    await published()[0].handlers.energyEvse.enableCharging({ chargingEnabledUntil: until, maximumChargeCurrent: 16000 })
+    const cached = serialise(run.registered)
+    run.api.signalShutdown()
+    await sleep(2500)
+    expect(charger.db.switch.on).toBe('true')
+    await start(cfg({ matterDeviceType: 'evCharger' }), { cached })
+    await vi.waitFor(() => expect(charger.db.switch.on).toBe('false'), { timeout: 3000 })
+  }, 10_000)
 
   it('keeps charging until a time more than 24.8 days away, the longest a node timer can wait', async () => {
     await start(cfg({ matterDeviceType: 'evCharger' }))
