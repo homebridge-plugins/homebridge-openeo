@@ -7,6 +7,7 @@
  * `settings` lists every /setsettings body received.
  */
 import http from 'node:http'
+import process from 'node:process'
 
 export async function startFakeCharger({ serial = 'EO123456', port = 0 } = {}) {
   const db = {
@@ -22,8 +23,12 @@ export async function startFakeCharger({ serial = 'EO123456', port = 0 } = {}) {
   const status = () => {
     const on = b(db.switch.on)
     const amps = Math.trunc(Number(db.switch.amps))
-    const req = on && flags.plugged ? amps : 0
-    let id = flags.plugged ? (req ? 12 : 10) : 5
+    const req = on && flags.plugged
+      ? amps
+      : 0
+    let id = flags.plugged
+      ? (req ? 12 : 10)
+      : 5
     if (flags.fault) {
       id = 4
     }
@@ -31,7 +36,11 @@ export async function startFakeCharger({ serial = 'EO123456', port = 0 } = {}) {
       eo_serial_number: serial,
       app_version: 'v1.2.3',
       eo_charger_state_id: id,
-      eo_charger_state: flags.fault ? 'mains-fault' : req ? 'charging' : flags.plugged ? 'car-connected' : 'idle',
+      eo_charger_state: flags.fault
+        ? 'mains-fault'
+        : req
+          ? 'charging'
+          : flags.plugged ? 'car-connected' : 'idle',
       eo_session_cost: 1.23,
       charger_name: 'Garage',
       eo_amps_requested: req,
@@ -44,9 +53,20 @@ export async function startFakeCharger({ serial = 'EO123456', port = 0 } = {}) {
     }
   }
   const config = () => ({
-    switch: { enabled: true, on: b(db.switch.on), amps: Math.trunc(Number(db.switch.amps)), retain_state_on_startup: true },
-    scheduler: { enabled: b(db.scheduler.enabled), schedule: [] },
-    loadmanagement: { enabled: true, solar_enable: b(db.loadmanagement.solar_enable) },
+    switch: {
+      enabled: true,
+      on: b(db.switch.on),
+      amps: Math.trunc(Number(db.switch.amps)),
+      retain_state_on_startup: true,
+    },
+    scheduler: {
+      enabled: b(db.scheduler.enabled),
+      schedule: [],
+    },
+    loadmanagement: {
+      enabled: true,
+      solar_enable: b(db.loadmanagement.solar_enable),
+    },
   })
 
   const server = http.createServer((req, res) => {
@@ -62,8 +82,20 @@ export async function startFakeCharger({ serial = 'EO123456', port = 0 } = {}) {
     }
     if (req.method === 'GET' && req.url === '/getsessiondata') {
       return send([
-        { first_timestamp: 1761210000, last_timestamp: 1761230000, joules: 52_000_000, seconds_charged: 14400, cost: 2.6 },
-        { first_timestamp: 1761390000, last_timestamp: 1761400000, joules: 15_120_000, seconds_charged: 2700, cost: 0.76 },
+        {
+          first_timestamp: 1761210000,
+          last_timestamp: 1761230000,
+          joules: 52_000_000,
+          seconds_charged: 14400,
+          cost: 2.6,
+        },
+        {
+          first_timestamp: 1761390000,
+          last_timestamp: 1761400000,
+          joules: 15_120_000,
+          seconds_charged: 2700,
+          cost: 0.76,
+        },
       ])
     }
     if (req.method === 'POST' && req.url === '/setsettings') {
@@ -78,7 +110,10 @@ export async function startFakeCharger({ serial = 'EO123456', port = 0 } = {}) {
           db[module] = db[module] || {}
           db[module][key] = v
         }
-        send({ status: 'success', config: config() })
+        send({
+          status: 'success',
+          config: config(),
+        })
       })
       return
     }
@@ -105,15 +140,17 @@ export async function startFakeCharger({ serial = 'EO123456', port = 0 } = {}) {
     setPlugged(on) {
       flags.plugged = on
     },
-    stop: () => new Promise((resolve) => {
-      server.closeAllConnections()
-      server.close(() => resolve())
-    }),
+    stop: () =>
+      new Promise((resolve) => {
+        server.closeAllConnections()
+        server.close(() => resolve())
+      }),
   }
 }
 
 // Run on its own to try the plugin without a charger: node test/fake-openeo-charger.js 8080
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const fake = await startFakeCharger({ port: Number(process.argv[2]) || 8080 })
-  console.log(`Pretend OpenEO charger on http://${fake.host}`)
+  startFakeCharger({ port: Number(process.argv[2]) || 8080 }).then((fake) => {
+    process.stdout.write(`Pretend OpenEO charger on http://${fake.host}\n`)
+  })
 }
