@@ -134,6 +134,30 @@ describe('matter ev charger (experimental)', () => {
     expect(charger.settings.at(-1)).toBe('switch%3Aon=false&switch%3Aamps=20')
   })
 
+  it('keeps charging until a time more than 24.8 days away, the longest a node timer can wait', async () => {
+    await start(cfg({ matterDeviceType: 'evCharger' }))
+    await vi.waitFor(() => expect(published()).toHaveLength(1))
+    const [evse] = published()
+    // the switch writes are stubbed: fake timers would stop fetch from working
+    const setSwitch = vi.spyOn(run.platform.charger, 'setSwitch').mockResolvedValue()
+    vi.useFakeTimers({
+      toFake: ['setTimeout', 'clearTimeout'],
+    })
+    try {
+      const until = Math.floor(Date.now() / 1000) + 30 * 24 * 3600
+      await evse.handlers.energyEvse.enableCharging({ chargingEnabledUntil: until, maximumChargeCurrent: 16000 })
+      expect(setSwitch.mock.calls).toEqual([
+        [true],
+      ])
+      await vi.advanceTimersByTimeAsync(2 ** 31)
+      expect(setSwitch.mock.calls).toEqual([
+        [true],
+      ])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('falls back to the outlet on a homebridge without the ev charger type', async () => {
     await start(cfg({ matterDeviceType: 'evCharger' }), { evse: false })
     await vi.waitFor(() => expect(published()).toHaveLength(1))
