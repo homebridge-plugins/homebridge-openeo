@@ -83,6 +83,21 @@ describe('homekit accessories', () => {
     expect(charger.settings.at(-1)).toBe('switch%3Aon=false&switch%3Aamps=16')
   })
 
+  it('answers every change of the charge current, when the slider moves twice quickly', async () => {
+    await start(cfg({ exposeCurrentControl: true }))
+    const speed = svc(run.registered[0], 'current').getCharacteristic(run.hap.Characteristic.RotationSpeed)
+    const answered = p => Promise.race([
+      p.then(() => 'answered'),
+      sleep(2000).then(() => 'no answer'),
+    ])
+    const writes = charger.settings.length
+    const first = answered(speed.handleSetRequest(50))
+    const second = answered(speed.handleSetRequest(75))
+    expect(await Promise.all([first, second])).toEqual(['answered', 'answered'])
+    expect(charger.settings.slice(writes)).toEqual(['switch%3Aon=true&switch%3Aamps=24'])
+    charger.db.switch.on = 'False'
+  })
+
   it('turns the charging schedule off', async () => {
     await start(cfg())
     await svc(run.registered[0], 'schedule').getCharacteristic(run.hap.Characteristic.On).handleSetRequest(false)
