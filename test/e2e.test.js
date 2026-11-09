@@ -127,6 +127,23 @@ describe('homekit accessories', () => {
     expect(contact.value).toBe(0)
   })
 
+  it('keeps the same accessory and energy total when the charger\'s address changes', async () => {
+    await start(cfg())
+    const cached = serialise(run.registered)
+    const total = run.platform.charger.energy.file
+    run.api.signalShutdown()
+    const moved = await startFakeCharger({ serial: 'EO123456' })
+    try {
+      await start(cfg({ host: moved.host }), { cached })
+      expect(run.registered).toHaveLength(0)
+      expect(run.unregistered).toHaveLength(0)
+      expect(run.platform.charger.energy.file).toBe(total)
+    } finally {
+      run.api.signalShutdown()
+      await moved.stop()
+    }
+  })
+
   it('keeps the same accessory after a restart, and drops services that are turned off', async () => {
     await start(cfg())
     const cached = serialise(run.registered)
