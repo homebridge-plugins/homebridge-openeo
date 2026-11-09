@@ -104,6 +104,26 @@ describe('matter outlet', () => {
     expect(outlet.state.electricalEnergyMeasurement.cumulativeEnergyImported.energy).toBe(Math.round(c.energy.totalWh * 1000))
   })
 
+  it('shows the charger\'s real on/off after a restart, not the state homebridge cached', async () => {
+    await start(cfg())
+    await vi.waitFor(() => expect(published()).toHaveLength(1))
+    // cached while charging: Homebridge keeps this state when the plugin registers again
+    const cached = {
+      ...published()[0],
+      clusters: {
+        ...published()[0].clusters,
+        onOff: { onOff: true },
+      },
+    }
+    run.api.signalShutdown()
+    await start(cfg(), {
+      restored: [cached],
+    })
+    await vi.waitFor(() => expect(published()).toHaveLength(1))
+    await run.platform.charger.poll()
+    expect(published()[0].state.onOff.onOff).toBe(false)
+  })
+
   it('stays on homekit when matter is off for the bridge', async () => {
     await start(cfg(), { matterOn: false })
     expect(published()).toHaveLength(0)
