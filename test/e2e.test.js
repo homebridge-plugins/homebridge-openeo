@@ -98,6 +98,17 @@ describe('homekit accessories', () => {
     charger.db.switch.on = 'False'
   })
 
+  it('stays off when charging is turned off just after the slider moved', async () => {
+    await start(cfg({ exposeCurrentControl: true }))
+    const a = run.registered[0]
+    const speed = svc(a, 'current').getCharacteristic(run.hap.Characteristic.RotationSpeed)
+    const slider = speed.handleSetRequest(30)
+    await svc(a, 'charger').getCharacteristic(run.hap.Characteristic.On).handleSetRequest(false)
+    await slider
+    await sleep(1000)
+    expect(charger.db.switch.on).toBe('false')
+  })
+
   it('turns the charging schedule off', async () => {
     await start(cfg())
     await svc(run.registered[0], 'schedule').getCharacteristic(run.hap.Characteristic.On).handleSetRequest(false)
