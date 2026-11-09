@@ -20,14 +20,12 @@
       "host": {
         "title": "Charger address",
         "type": "string",
-        "default": "",
         "description": "Leave blank to find the charger automatically, or enter its IP (e.g. 192.168.1.50). A fixed IP is more reliable across VLANs.",
         "placeholder": "auto"
       },
       "discoverySubnets": {
         "title": "Extra subnets to search",
         "type": "string",
-        "default": "",
         "placeholder": "e.g. 192.168.20.0/24",
         "description": "Only used when the address is blank. Add the charger's subnet if it's on a different VLAN (comma-separated)."
       },
@@ -55,7 +53,7 @@
             ]
           }
         ],
-        "description": "EV charger uses Matter's proper EV charger type: charging on/off, current limit, charging mode (manual / timer / solar), session energy and faults. It isn't yet known how Apple Home shows it, so the HomeKit on/off outlet is kept alongside. Changing this means re-adding the Matter accessory in the Home app.",
+        "description": "EV charger uses Matter's proper EV charger type: charging on/off, current limit, charging mode (manual / timer / solar), session energy and faults. Apple Home currently shows it as 'not supported', so keep Outlet for Apple Home - the HomeKit on/off outlet is kept alongside. Changing this means re-adding the Matter accessory in the Home app.",
         "condition": {
           "functionBody": "return model.matter !== false;"
         }
