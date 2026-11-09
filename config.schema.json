@@ -1,0 +1,166 @@
+{
+  "pluginAlias": "OpenEO",
+  "pluginType": "platform",
+  "singular": true,
+  "headerDisplay": "Local control of an EO Mini Pro 2 / EO Smart Home Hub running [OpenEO](https://github.com/minceheid/openeo). Leave the address blank to find the charger automatically.",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "title": "Name",
+        "type": "string",
+        "default": "EV Charger",
+        "required": true
+      },
+      "host": {
+        "title": "Charger address",
+        "type": "string",
+        "default": "",
+        "required": false,
+        "description": "Leave blank to find the charger automatically, or enter its IP (e.g. 192.168.1.50). A fixed IP is more reliable across VLANs.",
+        "placeholder": "auto"
+      },
+      "discoverySubnets": {
+        "title": "Extra subnets to search",
+        "type": "string",
+        "default": "",
+        "placeholder": "e.g. 192.168.20.0/24",
+        "description": "Only used when the address is blank. Add the charger's subnet if it's on a different VLAN (comma-separated)."
+      },
+      "matter": {
+        "title": "Publish over Matter with energy reporting",
+        "type": "boolean",
+        "default": true,
+        "description": "Needs Homebridge 2.2+ with a 'matter' block on this bridge (child bridge recommended). The charger appears as a Matter outlet whose power and kWh show in Apple Home's Energy view. Falls back to a HomeKit outlet automatically."
+      },
+      "matterDeviceType": {
+        "title": "Matter device type",
+        "type": "string",
+        "default": "outlet",
+        "oneOf": [
+          {
+            "title": "Outlet with energy metering (recommended)",
+            "enum": [
+              "outlet"
+            ]
+          },
+          {
+            "title": "EV charger (experimental, Homebridge 2.5+)",
+            "enum": [
+              "evCharger"
+            ]
+          }
+        ],
+        "description": "EV charger uses Matter's proper EV charger type: charging on/off, current limit, charging mode (manual / timer / solar), session energy and faults. It isn't yet known how Apple Home shows it, so the HomeKit on/off outlet is kept alongside. Changing this means re-adding the Matter accessory in the Home app.",
+        "condition": {
+          "functionBody": "return model.matter !== false;"
+        }
+      },
+      "hapOutletWithMatter": {
+        "title": "Also keep the HomeKit outlet when Matter is on",
+        "type": "boolean",
+        "default": false,
+        "description": "Usually off - otherwise you get two charger tiles."
+      },
+      "pollInterval": {
+        "title": "Poll interval (seconds)",
+        "type": "integer",
+        "default": 10,
+        "minimum": 3,
+        "maximum": 300
+      },
+      "defaultAmps": {
+        "title": "Default charge current (A)",
+        "type": "integer",
+        "default": 32,
+        "minimum": 6,
+        "maximum": 32,
+        "description": "Used when turning charging on if OpenEO has no manual current set yet."
+      },
+      "exposeCarSensor": {
+        "title": "Show 'Car Connected' sensor",
+        "type": "boolean",
+        "default": true
+      },
+      "exposeScheduleSwitch": {
+        "title": "Show 'Charging Schedule' switch",
+        "type": "boolean",
+        "default": true,
+        "description": "Turns OpenEO's timer schedules on/off."
+      },
+      "exposeCurrentControl": {
+        "title": "Show 'Charge Current' control (fan slider)",
+        "type": "boolean",
+        "default": false,
+        "description": "HomeKit has no amps control, so this appears as a fan: speed % = current out of 32A (min 6A)."
+      },
+      "exposeEnergy": {
+        "title": "Show power & energy (Eve app)",
+        "type": "boolean",
+        "default": true
+      },
+      "exposeFaultSensor": {
+        "title": "Show 'Charger Problem' sensor",
+        "type": "boolean",
+        "default": true,
+        "description": "A contact sensor that opens if the charger reports a mains fault or goes offline. Turn on its notifications in the Home app."
+      },
+      "offlineAlertMinutes": {
+        "title": "Report offline after (minutes)",
+        "type": "integer",
+        "default": 5,
+        "minimum": 1,
+        "maximum": 1440
+      },
+      "timeout": {
+        "title": "Request timeout (seconds)",
+        "type": "integer",
+        "default": 5,
+        "minimum": 1,
+        "maximum": 30
+      }
+    }
+  },
+  "layout": [
+    "name",
+    "host",
+    {
+      "key": "discoverySubnets",
+      "condition": {
+        "functionBody": "return !model.host || model.host.toLowerCase() === 'auto';"
+      }
+    },
+    {
+      "type": "fieldset",
+      "title": "Matter",
+      "items": [
+        "matter",
+        "matterDeviceType",
+        "hapOutletWithMatter"
+      ]
+    },
+    {
+      "type": "fieldset",
+      "title": "Accessories",
+      "items": [
+        "exposeCarSensor",
+        "exposeScheduleSwitch",
+        "exposeCurrentControl",
+        "exposeEnergy",
+        "exposeFaultSensor",
+        "offlineAlertMinutes"
+      ]
+    },
+    {
+      "type": "fieldset",
+      "title": "Advanced",
+      "expandable": true,
+      "items": [
+        "defaultAmps",
+        "pollInterval",
+        "timeout"
+      ]
+    }
+  ],
+  "customUi": true
+}

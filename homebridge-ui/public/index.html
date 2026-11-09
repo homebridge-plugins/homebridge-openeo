@@ -1,0 +1,227 @@
+<style>
+  .oe-wrap { max-width: 900px; margin: 0 auto; }
+  .oe-badge { font-size: .8rem; padding: .35em .7em; border-radius: 999px; font-weight: 600; letter-spacing: .02em; }
+  .oe-badge.charging { background: #1f9d55; color: #fff; }
+  .oe-badge.connected { background: #2f6fdd; color: #fff; }
+  .oe-badge.idle { background: rgba(127,127,127,.25); }
+  .oe-badge.offline, .oe-badge.fault { background: #d93a3a; color: #fff; }
+  .oe-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: .75rem; }
+  .oe-metric { border: 1px solid rgba(127,127,127,.25); border-radius: .5rem; padding: .6rem .75rem; }
+  .oe-metric .v { font-size: 1.35rem; font-weight: 600; line-height: 1.2; font-variant-numeric: tabular-nums; }
+  .oe-metric .l { font-size: .75rem; opacity: .7; text-transform: uppercase; letter-spacing: .04em; }
+  .oe-muted { opacity: .7; font-size: .85rem; }
+  .oe-table td, .oe-table th { font-variant-numeric: tabular-nums; }
+  .oe-found { display: flex; align-items: center; justify-content: space-between; gap: .5rem;
+              border: 1px solid rgba(127,127,127,.25); border-radius: .5rem; padding: .5rem .75rem; margin-top: .5rem; }
+</style>
+
+<div class="oe-wrap">
+  <div class="card mb-3">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+        <div>
+          <h5 class="mb-1" id="oe-name">OpenEO EV Charger</h5>
+          <div class="oe-muted" id="oe-host">Loading…</div>
+        </div>
+        <span class="oe-badge idle" id="oe-badge">…</span>
+      </div>
+
+      <div class="alert alert-danger mt-3 mb-0 d-none" id="oe-fault"></div>
+      <div class="alert alert-warning mt-3 mb-0 d-none" id="oe-error"></div>
+
+      <div class="oe-metrics mt-3" id="oe-metrics"></div>
+      <div class="oe-muted mt-2" id="oe-updated"></div>
+    </div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-body">
+      <h6 class="mb-2">Recent charging sessions</h6>
+      <div id="oe-sessions" class="oe-muted">No data yet.</div>
+    </div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-body">
+      <h6 class="mb-1">Find charger</h6>
+      <p class="oe-muted mb-2">Searches this Homebridge machine's network for OpenEO. If the charger is on a different VLAN or subnet,
+        enter it below (e.g. <code>192.168.20.0/24</code>).</p>
+      <div class="input-group">
+        <input type="text" class="form-control" id="oe-subnets" placeholder="Extra subnets to search (optional)">
+        <button class="btn btn-primary" id="oe-discover" type="button">Search</button>
+      </div>
+      <div id="oe-found"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    var pluginConfig = [];
+    var refreshTimer = null;
+
+    function cfg() {
+      if (!pluginConfig.length) pluginConfig.push({ platform: 'OpenEO', name: 'EV Charger' });
+      return pluginConfig[0];
+    }
+    function esc(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+      });
+    }
+    function fmt(n, dp) { return (typeof n === 'number' && isFinite(n)) ? n.toFixed(dp) : '–'; }
+    function metric(label, value) {
+      return '<div class="oe-metric"><div class="v">' + value + '</div><div class="l">' + esc(label) + '</div></div>';
+    }
+    function bool(v) { return v === true || v === 1 || String(v).toLowerCase() === 'true'; }
+    function ago(iso) {
+      if (!iso) return 'never';
+      var s = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
+      if (s < 60) return s + 's ago';
+      if (s < 3600) return Math.round(s / 60) + ' min ago';
+      return new Date(iso).toLocaleString();
+    }
+
+    function render(r) {
+      var badge = document.getElementById('oe-badge');
+      var hostEl = document.getElementById('oe-host');
+      var faultEl = document.getElementById('oe-fault');
+      var errEl = document.getElementById('oe-error');
+      var rt = r.runtime || {};
+
+      document.getElementById('oe-name').textContent = cfg().name || 'OpenEO EV Charger';
+
+      if (!r.host) {
+        hostEl.textContent = 'No charger address yet — use Search below, or enter it in the settings.';
+      } else {
+        hostEl.innerHTML = esc(r.host) + (r.source === 'discovered' ? ' · auto-discovered' : '')
+          + (rt.matter ? (rt.matterType === 'evCharger' ? ' · Matter EV charger (experimental)' : ' · Matter energy on') : '');
+      }
+
+      var fault = rt.fault && rt.fault.active ? rt.fault.reason : '';
+      var st = r.status || {};
+      var id = st.eo_charger_state_id;
+      if (r.reachable && (id === 3 || id === 4)) fault = 'Charger reports a mains fault';
+      faultEl.classList.toggle('d-none', !fault);
+      faultEl.textContent = fault ? 'Problem: ' + fault : '';
+
+      if (!r.reachable) {
+        badge.className = 'oe-badge offline';
+        badge.textContent = 'Offline';
+        errEl.classList.toggle('d-none', !r.host);
+        errEl.textContent = r.host ? 'Can’t reach the charger at ' + r.host + (r.error ? ' (' + r.error + ')' : '')
+          + '. Check the address, and that this machine can reach it on port 80.' : '';
+        document.getElementById('oe-metrics').innerHTML = '';
+        document.getElementById('oe-updated').textContent = rt.lastSeen ? 'Plugin last saw the charger ' + ago(rt.lastSeen) : '';
+        return;
+      }
+      errEl.classList.add('d-none');
+
+      var cls = 'idle', label = st.eo_charger_state || 'Idle';
+      if (id === 11 || id === 12 || id === 99) { cls = 'charging'; label = 'Charging'; }
+      else if (id >= 9) { cls = 'connected'; label = id >= 13 && id <= 14 ? 'Charge complete' : 'Car connected'; }
+      else if (id === 7 || id === 8) { label = 'Cable plugged in'; }
+      else if (id === 5 || id === 6) { label = 'Idle'; }
+      if (fault) cls = 'fault';
+      badge.className = 'oe-badge ' + cls;
+      badge.textContent = label;
+
+      var sw = (r.config && r.config.switch) || {};
+      var sched = (r.config && r.config.scheduler) || {};
+      var lm = (r.config && r.config.loadmanagement) || {};
+      var html = '';
+      html += metric('Power', fmt(st.eo_power_delivered, 2) + ' kW');
+      html += metric('Current', fmt(st.eo_current_vehicle, 1) + ' A');
+      html += metric('Voltage', fmt(st.eo_live_voltage, 0) + ' V');
+      html += metric('This session', fmt(st.eo_session_kwh, 2) + ' kWh');
+      if (typeof rt.lifetimeKWh === 'number') html += metric('Total (plugin)', fmt(rt.lifetimeKWh, 1) + ' kWh');
+      html += metric('Charge now', bool(sw.on) ? 'On · ' + esc(sw.amps) + ' A' : 'Off');
+      html += metric('Schedule', bool(sched.enabled) ? 'On' : 'Off');
+      if ('solar_enable' in lm) html += metric('Solar', bool(lm.solar_enable) ? 'On' : 'Off');
+      if (typeof st.eo_session_cost === 'number' && st.eo_session_cost > 0) html += metric('Session cost', fmt(st.eo_session_cost, 2));
+      document.getElementById('oe-metrics').innerHTML = html;
+
+      document.getElementById('oe-updated').textContent = 'Updated ' + new Date().toLocaleTimeString()
+        + (st.app_version ? ' · OpenEO ' + st.app_version : '') + (st.eo_serial_number ? ' · Serial ' + st.eo_serial_number : '');
+
+      renderSessions(r.sessions || []);
+    }
+
+    function renderSessions(list) {
+      var el = document.getElementById('oe-sessions');
+      if (!list.length) { el.textContent = 'No sessions recorded in the last 6 months.'; return; }
+      var rows = list.map(function (s) {
+        var kwh = (s.joules || 0) / 3600000;
+        var hrs = (s.seconds_charged || 0) / 3600;
+        var d = new Date((s.first_timestamp || 0) * 1000);
+        return '<tr><td>' + esc(d.toLocaleDateString()) + ' ' + esc(d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))
+          + '</td><td class="text-end">' + fmt(kwh, 2) + '</td><td class="text-end">'
+          + (hrs >= 1 ? fmt(hrs, 1) + ' h' : Math.round(hrs * 60) + ' min')
+          + '</td><td class="text-end">' + (typeof s.cost === 'number' ? fmt(s.cost, 2) : '–') + '</td></tr>';
+      }).join('');
+      el.className = '';
+      el.innerHTML = '<div class="table-responsive"><table class="table table-sm oe-table mb-0">'
+        + '<thead><tr><th>Started</th><th class="text-end">kWh</th><th class="text-end">Charging</th><th class="text-end">Cost</th></tr></thead>'
+        + '<tbody>' + rows + '</tbody></table></div>';
+    }
+
+    function refresh() {
+      clearTimeout(refreshTimer);
+      homebridge.request('/status', { host: cfg().host }).then(render).catch(function (e) {
+        document.getElementById('oe-host').textContent = 'Status unavailable: ' + (e && e.message ? e.message : e);
+      }).then(function () {
+        refreshTimer = setTimeout(refresh, 5000);
+      });
+    }
+
+    function useHost(host) {
+      cfg().host = host;
+      homebridge.updatePluginConfig(pluginConfig).then(function () {
+        return homebridge.savePluginConfig();
+      }).then(function () {
+        homebridge.toast.success('Charger address set to ' + host + '. Restart Homebridge (or the child bridge) to apply.', 'Saved');
+        refresh();
+      }).catch(function (e) {
+        homebridge.toast.error(String(e && e.message ? e.message : e), 'Could not save');
+      });
+    }
+
+    document.getElementById('oe-discover').addEventListener('click', function () {
+      var btn = this;
+      var out = document.getElementById('oe-found');
+      btn.disabled = true;
+      btn.textContent = 'Searching…';
+      out.innerHTML = '<div class="oe-muted mt-2">Scanning — this can take up to a minute.</div>';
+      homebridge.request('/discover', { subnets: document.getElementById('oe-subnets').value }).then(function (r) {
+        if (!r.found.length) {
+          out.innerHTML = '<div class="alert alert-warning mt-2 mb-0">No OpenEO charger found. If it’s on another VLAN, add that subnet above '
+            + 'and make sure this machine can reach it on port 80.</div>';
+          return;
+        }
+        out.innerHTML = r.found.map(function (f) {
+          return '<div class="oe-found"><div><strong>' + esc(f.host) + '</strong><div class="oe-muted">'
+            + esc([f.name, f.serial && 'Serial ' + f.serial, f.version, f.state].filter(Boolean).join(' · '))
+            + '</div></div><button type="button" class="btn btn-sm btn-success" data-host="' + esc(f.host) + '">Use this</button></div>';
+        }).join('');
+        Array.prototype.forEach.call(out.querySelectorAll('button[data-host]'), function (b) {
+          b.addEventListener('click', function () { useHost(b.getAttribute('data-host')); });
+        });
+      }).catch(function (e) {
+        out.innerHTML = '<div class="alert alert-danger mt-2 mb-0">' + esc(e && e.message ? e.message : e) + '</div>';
+      }).then(function () {
+        btn.disabled = false;
+        btn.textContent = 'Search';
+      });
+    });
+
+    homebridge.addEventListener('configChanged', function (event) {
+      if (Array.isArray(event.data)) pluginConfig = event.data;
+    });
+
+    homebridge.getPluginConfig().then(function (c) {
+      pluginConfig = c || [];
+      homebridge.showSchemaForm();
+      refresh();
+    });
+  })();
+</script>

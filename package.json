@@ -1,0 +1,33 @@
+{
+  "name": "homebridge-openeo",
+  "displayName": "OpenEO EV Charger",
+  "version": "1.3.0",
+  "description": "Homebridge plugin for EO Mini Pro 2 / EO Smart Home Hub chargers running OpenEO. Local control, Matter energy reporting, and an experimental Matter EV charger mode.",
+  "main": "index.js",
+  "license": "MIT",
+  "keywords": [
+    "homebridge-plugin",
+    "openeo",
+    "eo",
+    "ev",
+    "charger",
+    "homekit",
+    "matter",
+    "energy"
+  ],
+  "engines": {
+    "homebridge": "^1.6.0 || ^2.0.0-beta.0",
+    "node": "^18.15.0 || ^20.7.0 || ^22 || ^24"
+  },
+  "files": [
+    "index.js",
+    "lib/",
+    "homebridge-ui/",
+    "config.schema.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "dependencies": {
+    "@homebridge/plugin-ui-utils": "^2.0.0"
+  }
+}
