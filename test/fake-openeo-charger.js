@@ -69,7 +69,9 @@ export async function startFakeCharger({ serial = 'EO123456', port = 0 } = {}) {
     },
   })
 
+  const requests = {}
   const server = http.createServer((req, res) => {
+    requests[req.url] = (requests[req.url] || 0) + 1
     const send = (obj) => {
       res.writeHead(200, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify(obj))
@@ -127,6 +129,7 @@ export async function startFakeCharger({ serial = 'EO123456', port = 0 } = {}) {
     port: server.address().port,
     db,
     settings,
+    requests,
     charge(kwh = 1.5) {
       session.kwh += kwh
     },
