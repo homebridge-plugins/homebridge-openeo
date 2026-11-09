@@ -3,6 +3,7 @@
  */
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
+import { OpenEOCharger } from '../lib/charger.js'
 import { startFakeCharger } from './fake-openeo-charger.js'
 import { boot, loadHomebridge, useStorage } from './harness.js'
 import { makeMatter, withMatter } from './matter-stand-in.js'
@@ -60,6 +61,15 @@ afterAll(async () => {
 })
 
 describe('matter outlet', () => {
+  it('tries again while the bridge\'s matter server is still starting, instead of giving up on matter', async () => {
+    OpenEOCharger.matterRetryMs = 200
+    await start(cfg(), { startingRefusals: 2 })
+    await vi.waitFor(() => expect(published()).toHaveLength(1), { timeout: 3000 })
+    expect(run.m.log.registerCalls).toBe(3)
+    expect(run.registered[0].services.find(s => s.subtype === 'charger')).toBeUndefined()
+    expect(run.log.lines.filter(l => l.startsWith('[error]'))).toEqual([])
+  })
+
   it('publishes one outlet with power and energy, and drops the homekit outlet', async () => {
     await start(cfg())
     await vi.waitFor(() => expect(published()).toHaveLength(1))
