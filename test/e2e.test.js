@@ -4,7 +4,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { startFakeCharger } from './fake-openeo-charger.js'
-import { asHomeHubSeesIt, boot, loadHomebridge, serialise, useStorage } from './harness.js'
+import { asHomeHubSeesIt, boot, loadHomebridge, serialise, sleep, useStorage } from './harness.js'
 
 let charger
 let run
@@ -110,4 +110,32 @@ describe('homekit accessories', () => {
     expect(svc(run.all[0], 'schedule')).toBeUndefined()
     expect(svc(run.all[0], 'charger')).toBeDefined()
   })
+})
+
+describe('polling', () => {
+  it('keeps to one polling loop when a change is read back during a poll', async () => {
+    await start(cfg({ pollInterval: 3 }))
+    const c = run.platform.charger
+    // a change's read-back poll, while the regular poll is still waiting on the charger
+    await Promise.all([
+      c.poll(),
+      c.poll(),
+    ])
+    const before = charger.requests['/getstatus']
+    await sleep(3500)
+    expect(charger.requests['/getstatus'] - before).toBe(1)
+  }, 10_000)
+
+  it('stops asking the charger once homebridge shuts down', async () => {
+    await start(cfg({ pollInterval: 3 }))
+    const c = run.platform.charger
+    await svc(run.registered[0], 'charger').getCharacteristic(run.hap.Characteristic.On).handleSetRequest(true)
+    run.api.signalShutdown()
+    const before = { ...charger.requests }
+    await sleep(3500)
+    expect(charger.requests).toEqual(before)
+    await c.poll()
+    expect(charger.requests).toEqual(before)
+    charger.db.switch.on = 'False'
+  }, 10_000)
 })
