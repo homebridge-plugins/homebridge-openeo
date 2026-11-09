@@ -1,33 +1,57 @@
 {
-  "name": "homebridge-openeo",
-  "displayName": "OpenEO EV Charger",
-  "version": "1.3.0",
-  "description": "Homebridge plugin for EO Mini Pro 2 / EO Smart Home Hub chargers running OpenEO. Local control, Matter energy reporting, and an experimental Matter EV charger mode.",
-  "main": "index.js",
+  "name": "@homebridge-plugins/homebridge-openeo",
+  "alias": "OpenEO",
+  "displayName": "Homebridge OpenEO",
+  "type": "module",
+  "version": "1.0.0",
+  "description": "Homebridge plugin to show EO Mini Pro 2 and EO Smart Home Hub chargers running OpenEO in Apple Home, with live power over Matter.",
+  "author": "homebridge-plugins",
   "license": "MIT",
+  "homepage": "https://github.com/homebridge-plugins/homebridge-openeo",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/homebridge-plugins/homebridge-openeo.git"
+  },
+  "bugs": {
+    "url": "https://github.com/homebridge-plugins/homebridge-openeo/issues"
+  },
   "keywords": [
+    "homebridge",
     "homebridge-plugin",
+    "supports-hap",
+    "supports-matter",
+    "homebridge-openeo",
+    "homekit",
     "openeo",
     "eo",
     "ev",
-    "charger",
-    "homekit",
-    "matter",
+    "ev charger",
     "energy"
   ],
+  "main": "lib/index.js",
   "engines": {
-    "homebridge": "^1.6.0 || ^2.0.0-beta.0",
-    "node": "^18.15.0 || ^20.7.0 || ^22 || ^24"
+    "homebridge": "^1.11.4 || ^2.0.0",
+    "node": "^22.12.0 || ^24.0.0 || ^26.0.0"
   },
-  "files": [
-    "index.js",
-    "lib/",
-    "homebridge-ui/",
-    "config.schema.json",
-    "README.md",
-    "LICENSE"
-  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "lint": "eslint . --max-warnings=0",
+    "lint:fix": "npm run lint -- --fix",
+    "test": "vitest run",
+    "test:watch": "vitest watch",
+    "test-coverage": "npm run test -- --coverage",
+    "changelog:sync": "node .github/scripts/sync-changelog.mjs"
+  },
   "dependencies": {
-    "@homebridge/plugin-ui-utils": "^2.0.0"
+    "@homebridge/plugin-ui-utils": "^2.2.7"
+  },
+  "devDependencies": {
+    "@antfu/eslint-config": "^10.0.0",
+    "@vitest/coverage-v8": "^5.1.0",
+    "ajv": "^8.20.0",
+    "homebridge": "^2.5.0",
+    "vitest": "^5.1.0"
   }
 }
