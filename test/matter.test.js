@@ -154,7 +154,8 @@ describe('matter ev charger (experimental)', () => {
     expect(charger.settings.at(-1)).toBe('switch%3Aon=true&switch%3Aamps=20')
     await expect(evse.handlers.energyEvse.enableCharging({ maximumChargeCurrent: 4000 })).rejects.toThrow('6A')
     await evse.handlers.energyEvse.disable()
-    expect(charger.settings.at(-1)).toBe('switch%3Aon=false&switch%3Aamps=20')
+    expect(charger.settings).toContain('switch%3Aon=false&switch%3Aamps=20')
+    charger.db.scheduler.enabled = 'True'
   })
 
   it('keeps one session, and leaves the energy file alone, while no car is plugged in', async () => {
@@ -212,6 +213,25 @@ describe('matter ev charger (experimental)', () => {
       ])
     } finally {
       vi.useRealTimers()
+    }
+  })
+
+  it('stops charging on disable, also when the schedule or solar would keep it going', async () => {
+    await start(cfg({ matterDeviceType: 'evCharger' }))
+    await vi.waitFor(() => expect(published()).toHaveLength(1))
+    const [evse] = published()
+    charger.db.loadmanagement.solar_enable = 'True'
+    await run.platform.charger.poll()
+    try {
+      await evse.handlers.energyEvse.disable()
+      expect(charger.db.switch.on).toBe('false')
+      expect(charger.db.scheduler.enabled).toBe('false')
+      expect(charger.db.loadmanagement.solar_enable).toBe('false')
+      await run.platform.charger.poll()
+      expect(evse.state.energyEvseMode.currentMode).toBe(0)
+    } finally {
+      charger.db.scheduler.enabled = 'True'
+      charger.db.loadmanagement.solar_enable = 'False'
     }
   })
 
