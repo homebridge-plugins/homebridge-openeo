@@ -1,6 +1,8 @@
 /**
  * Matter: the plugin inside Homebridge's own API, with a stand-in api.matter (test/matter-stand-in.js).
  */
+import fs from 'node:fs'
+
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { OpenEOCharger } from '../lib/charger.js'
@@ -152,6 +154,27 @@ describe('matter ev charger (experimental)', () => {
     await expect(evse.handlers.energyEvse.enableCharging({ maximumChargeCurrent: 4000 })).rejects.toThrow('6A')
     await evse.handlers.energyEvse.disable()
     expect(charger.settings.at(-1)).toBe('switch%3Aon=false&switch%3Aamps=20')
+  })
+
+  it('keeps one session, and leaves the energy file alone, while no car is plugged in', async () => {
+    await start(cfg({ matterDeviceType: 'evCharger' }))
+    await vi.waitFor(() => expect(published()).toHaveLength(1))
+    const [evse] = published()
+    const c = run.platform.charger
+    charger.setPlugged(false)
+    try {
+      await c.poll()
+      const session = evse.state.energyEvse.sessionId
+      const writes = vi.spyOn(fs, 'writeFileSync')
+      for (let i = 0; i < 3; i++) {
+        await c.poll()
+      }
+      expect(evse.state.energyEvse.sessionId).toBe(session)
+      expect(writes.mock.calls.filter(([file]) => file === c.energy.file)).toEqual([])
+    } finally {
+      vi.restoreAllMocks()
+      charger.setPlugged(true)
+    }
   })
 
   it('keeps charging until a time more than 24.8 days away, the longest a node timer can wait', async () => {

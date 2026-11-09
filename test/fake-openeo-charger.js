@@ -29,6 +29,12 @@ export async function startFakeCharger({ serial = 'EO123456', port = 0 } = {}) {
     let id = flags.plugged
       ? (req ? 12 : 10)
       : 5
+    // like OpenEO's chargersession.py: while no car is connected (state below 9) it resets
+    // the session, and its timestamp, on every loop
+    if (!flags.plugged) {
+      session.kwh = 0
+      session.ts += 5
+    }
     if (flags.fault) {
       id = 4
     }
