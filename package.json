@@ -3,7 +3,7 @@
   "alias": "OpenEO",
   "displayName": "Homebridge OpenEO",
   "type": "module",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Homebridge plugin to show EO Mini Pro 2 and EO Smart Home Hub chargers running OpenEO in Apple Home, with live power over Matter.",
   "author": "homebridge-plugins",
   "license": "MIT",
