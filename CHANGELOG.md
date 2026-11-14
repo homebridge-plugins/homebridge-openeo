@@ -7,6 +7,7 @@ All notable changes to `@homebridge-plugins/homebridge-openeo` will be documente
 ### Changed
 
 - ci: publish releases with node.js v26, the current lts
+- chore(deps): dependency updates
 
 ## v1.0.0 (2026-11-09)
 
